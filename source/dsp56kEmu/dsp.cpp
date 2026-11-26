@@ -119,6 +119,7 @@ namespace dsp56k
 	//
 	void DSP::resetHW()
 	{
+		m_loopActivationCount = 0;
 		// 100162AEd01.pdf - page 2-16
 
 		// TODO: internal peripheral devices are reset
@@ -399,11 +400,13 @@ namespace dsp56k
 		m_currentOpLen = 1;
 
 		const TWord currentOp = pcCurrentInstruction;
+		const auto instructionsBefore = m_instructions;
 		const auto& opCache = m_opcodeCache[currentOp];
 
 		exec_jump(opCache.op, op);
 
-		if(pcCurrentInstruction == currentOp)
+		// A DO that returns after opening its loop has accounted itself and the PC still names it
+		if(pcCurrentInstruction == currentOp && m_instructions == instructionsBefore)
 		{
 			++m_instructions;
 
@@ -600,6 +603,15 @@ namespace dsp56k
 
 		traceOp();
 
+		if constexpr(!g_useJIT)
+		{
+			if(m_jit.getConfig().maxDoIterations && m_loopActivationCount < m_loopActivations.size())
+			{
+				m_loopActivations[m_loopActivationCount++] = {stackCount, false};
+				return true;
+			}
+		}
+
 		// __________________
 		//
 
@@ -649,6 +661,48 @@ namespace dsp56k
 	// _____________________________________________________________________________
 	// exec_do_end
 	//
+	// The inline loop of do_start() as a step after each instruction: the innermost activation tests for its loop
+	// end; once it is finished (loop end with LF clear, the last iteration, or its frame popped by ENDDO/BRKcc), the
+	// next outer activation tests the same instruction, exactly as the inline loop returned to its caller.
+	void DSP::processLoopActivations()
+	{
+		while(m_loopActivationCount)
+		{
+			auto& act = m_loopActivations[m_loopActivationCount - 1];
+			bool finished = false;
+
+			if(pcCurrentInstruction + m_currentOpLen == reg.la.var + 1)
+				act.fetchedLA = true;
+
+			if(reg.pc.var == (reg.la.var + 1) && act.fetchedLA)
+			{
+				act.fetchedLA = false;
+
+				if(!sr_test_noCache(SR_LF))
+				{
+					finished = true;
+				}
+				else if(!sr_test_noCache(SR_FV) && reg.lc.var <= 1)
+				{
+					setPC(reg.la.var + 1);
+					do_end();
+					finished = true;
+				}
+				else
+				{
+					if(!sr_test_noCache(SR_FV))
+						--reg.lc.var;
+					setPC(hiword(reg.ss[ssIndex()]));
+				}
+			}
+
+			if(!finished && reg.sc.var >= act.stackCount)
+				return;
+
+			--m_loopActivationCount;
+		}
+	}
+
 	bool DSP::do_end()
 	{
 		// Restore the previous loop flags - BOTH of them. The manual's ENDDO operation line says

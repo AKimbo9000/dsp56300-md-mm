@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <atomic>
 
 #include "disasm.h"
@@ -97,6 +99,16 @@ namespace dsp56k
 		IExternalBusDevice*					m_externalBusDevice = nullptr;
 		
 		TWord							pcCurrentInstruction = 0;
+
+		// Interpreter DO loops when JitConfig::maxDoIterations is set. Instead of running a whole loop inside the
+		// DO instruction, do_start() opens an activation and returns, and execInterpreter() applies the loop end
+		// after each instruction, with the same rules as the inline loop. exec() then returns after every
+		// instruction, so a host scheduler can interleave other components (MD/MM: the ColdFire waits for the
+		// DSP inside such loops, a livelock when the loop never yields).
+		struct LoopActivation { TWord stackCount; bool fetchedLA; };
+		std::array<LoopActivation, 32> m_loopActivations{};
+		uint32_t m_loopActivationCount = 0;
+		void processLoopActivations();
 		TWord							m_srCurrentInstruction = 0;
 		TWord							m_opWordB = 0;
 		uint32_t						m_currentOpLen = 0;
@@ -333,6 +345,9 @@ namespace dsp56k
 			const auto op = fetchPC();
 
 			execOp(op);
+
+			if(ASMJIT_UNLIKELY(m_loopActivationCount))
+				processLoopActivations();
 		}
 
 		template<typename Ta, typename Tb> void execPeriph() noexcept
