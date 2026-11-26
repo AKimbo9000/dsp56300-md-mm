@@ -3,6 +3,8 @@
 #include "jitops_jmp.inl"
 #include "dsp.h"
 
+#include <cstdio>
+
 namespace dsp56k
 {
 	void skipToFrameSync(DSP* _dsp, TWord _instructions)
@@ -88,6 +90,10 @@ namespace dsp56k
 			else if(_addr == Essi::ESSI1_SSISR)
 				func = _waitForSet ? essiSkipToSlot<true, 1>(_bit) : essiSkipToSlot<false, 1>(_bit);
 		}
+
+		if(getBlock().dsp().m_spinLog)
+			std::fprintf(stderr, "JITSPIN compile pc=%06x op=%06x opB=%06x addr=%06x bit=%u waitForSet=%d func=%d\n",
+				m_pcCurrentOp, m_opWordA, m_opWordB, _addr, _bit, _waitForSet ? 1 : 0, func ? 1 : 0);
 
 		if(!func)
 			return;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 
 #include <atomic>
 
@@ -260,9 +261,14 @@ namespace dsp56k
 			}
 			else
 			{
+				// as the JIT does: code that skips whole iterations of a wait loop (mdLib spinSkip, skipNopLoopIterations)
+				// may do so only inside a run with a known stop cycle, and must not skip past it
+				const auto previousStop = m_runStopCycle;
+				m_runStopCycle = _targetCycles;
 				do
 					execInterpreter();
 				while(m_cycles < _targetCycles);
+				m_runStopCycle = previousStop;
 			}
 		}
 
@@ -591,7 +597,19 @@ namespace dsp56k
 			m_cycles += _cycles;
 			++m_fastForwardCalls;
 			m_fastForwardInstructions += _instructions;
+			if(ASMJIT_UNLIKELY(m_spinLog))
+			{
+				auto& e = m_fastForwardByPC[reg.pc.var];
+				++e.first;
+				e.second += _instructions;
+			}
 		}
+		// DSP_SPIN_LOG: fast forwards per PC, and in the interpreter how far serialStatusSpin got per PC
+		bool m_spinLog = false;
+		std::map<TWord, std::pair<uint64_t, uint64_t>> m_fastForwardByPC;
+		std::map<TWord, std::array<uint64_t, 4>> m_spinProbeByPC;	// entered, address ok, bit ok, fast forwarded
+		const auto& getFastForwardByPC() const { return m_fastForwardByPC; }
+		const auto& getSpinProbeByPC() const { return m_spinProbeByPC; }
 		uint64_t getFastForwardCalls() const { return m_fastForwardCalls; }
 		uint64_t getFastForwardInstructions() const { return m_fastForwardInstructions; }
 		uint64_t m_fastForwardCalls = 0;

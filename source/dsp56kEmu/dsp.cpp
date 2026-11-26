@@ -97,6 +97,8 @@ namespace dsp56k
 	{
 		assert(_pX != _pY && "cannot use the same peripherals twice");
 
+		m_spinLog = std::getenv("DSP_SPIN_LOG") != nullptr;
+
 		mem.setDSP(this);
 
 		m_disasm.addSymbols(mem);
@@ -710,7 +712,9 @@ namespace dsp56k
 	// so it applies the same skip, at the same point: before the polling instruction reads the status register.
 	void DSP::serialStatusSpin(const TWord _addr, const TWord _bit, const bool _waitForSet)
 	{
-		const auto skip = [this](const TWord _n) { fastForward(_n, _n); };
+		const auto skip = [this](const TWord _n) { if(m_spinLog) ++m_spinProbeByPC[pcCurrentInstruction][3]; fastForward(_n, _n); };
+		if(m_spinLog)
+			++m_spinProbeByPC[pcCurrentInstruction][0];
 
 		if(auto* p = dynamic_cast<Peripherals56362*>(perif[0]))
 		{
@@ -726,8 +730,10 @@ namespace dsp56k
 		{
 			if(_addr != Essi::ESSI0_SSISR && _addr != Essi::ESSI1_SSISR)
 				return;
+			if(m_spinLog) ++m_spinProbeByPC[pcCurrentInstruction][1];
 			if(_bit != Essi::SSISR_TFS && _bit != Essi::SSISR_RFS && _bit != Essi::SSISR_TDE && _bit != Essi::SSISR_RDF)
 				return;
+			if(m_spinLog) ++m_spinProbeByPC[pcCurrentInstruction][2];
 			auto& essi = _addr == Essi::ESSI0_SSISR ? p->getEssi0() : p->getEssi1();
 			const bool flag = (essi.readSR() >> _bit) & 1;
 			skip(_waitForSet ? p->getEssiClock().getRemainingInstructionsUntil<true>(flag)
