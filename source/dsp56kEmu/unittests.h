@@ -258,6 +258,7 @@ namespace  dsp56k
 		void hostQueueHostCommands();
 		void hostStatusRegisterReadOnly();
 		void movepPeripheralEa();
+		void moveRnDisplacementPeripheral();
 		void shiTransmitEmptyAfterReset();
 		void maskedInterruptKeepsPeripheralsRunning();
 		void externalInterruptsWaitForRoom();

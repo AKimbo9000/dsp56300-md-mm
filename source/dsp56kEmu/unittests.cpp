@@ -252,6 +252,7 @@ namespace dsp56k
 		hostQueueHostCommands();
 		hostStatusRegisterReadOnly();
 		movepPeripheralEa();
+		moveRnDisplacementPeripheral();
 		shiTransmitEmptyAfterReset();
 		maskedInterruptKeepsPeripheralsRunning();
 		externalInterruptsWaitForRoom();
@@ -871,6 +872,32 @@ namespace dsp56k
 		});
 
 		dsp.getPeriph(0)->write(XIO_DOR0, 0);
+	}
+
+	// x:(Rn+displacement) reaches a peripheral register, as it does through the JIT's readMemOrPeriph/writeMemOrPeriph
+	void UnitTests::moveRnDisplacementPeripheral()
+	{
+		dsp.regs().m[0].var = 0xffffff;
+		dsp.regs().r[0].var = g_testPeriphAddr - 2;
+
+		runTest([&]()
+		{
+			dsp.getPeriph(0)->write(g_testPeriphAddr, 0x2468ac);
+			emit("move x:(r0+2),x0");
+		}, [&]()
+		{
+			verify((dsp.regs().x.var & 0xffffff) == 0x2468ac);
+		});
+
+		runTest([&]()
+		{
+			dsp.getPeriph(0)->write(g_testPeriphAddr, 0);
+			dsp.regs().x.var = 0x13579b;
+			emit("move x0,x:(r0+2)");
+		}, [&]()
+		{
+			verify(dsp.getPeriph(0)->read(g_testPeriphAddr, Nop) == 0x13579b);
+		});
 	}
 
 	void UnitTests::conditionCodes()

@@ -70,11 +70,15 @@ namespace dsp56k
 
 		if( write )
 		{
-			decode_dddddd_write( DDDDDD, TReg24(memRead( Area, ea )) );
+			decode_dddddd_write( DDDDDD, TReg24(ASMJIT_UNLIKELY(isPeripheralAddress(ea)) ? memReadPeriph(Area, ea, Inst) : memRead( Area, ea )) );
 		}
 		else
 		{
-			memWrite( Area, ea, decode_dddddd_read( DDDDDD ).var );
+			const auto value = decode_dddddd_read( DDDDDD ).var;
+			if(ASMJIT_UNLIKELY(isPeripheralAddress(ea)))
+				memWritePeriph(Area, ea, value);
+			else
+				memWrite( Area, ea, value );
 		}
 	}
 
@@ -122,11 +126,15 @@ namespace dsp56k
 
 		if( write )
 		{
-			decode_ddddd_write<TReg24>( ddddd, TReg24(memRead(MemArea_X, ea )) );
+			decode_ddddd_write<TReg24>( ddddd, TReg24(ASMJIT_UNLIKELY(isPeripheralAddress(ea)) ? memReadPeriph(MemArea_X, ea, Movex_Rnxxx) : memRead(MemArea_X, ea )) );
 		}
 		else
 		{
-			memWrite(MemArea_X, ea, decode_ddddd_read<TWord>( ddddd ) );
+			const auto value = decode_ddddd_read<TWord>( ddddd );
+			if(ASMJIT_UNLIKELY(isPeripheralAddress(ea)))
+				memWritePeriph(MemArea_X, ea, value);
+			else
+				memWrite(MemArea_X, ea, value );
 		}		
 	}
 	inline void DSP::op_Movey_Rnxxx(const TWord op)
@@ -138,11 +146,15 @@ namespace dsp56k
 
 		if( write )
 		{
-			decode_ddddd_write<TReg24>( ddddd, TReg24(memRead(MemArea_Y, ea )) );
+			decode_ddddd_write<TReg24>( ddddd, TReg24(ASMJIT_UNLIKELY(isPeripheralAddress(ea)) ? memReadPeriph(MemArea_Y, ea, Movey_Rnxxx) : memRead(MemArea_Y, ea )) );
 		}
 		else
 		{
-			memWrite(MemArea_Y, ea, decode_ddddd_read<TWord>( ddddd ) );
+			const auto value = decode_ddddd_read<TWord>( ddddd );
+			if(ASMJIT_UNLIKELY(isPeripheralAddress(ea)))
+				memWritePeriph(MemArea_Y, ea, value);
+			else
+				memWrite(MemArea_Y, ea, value );
 		}		
 	}
 	inline void DSP::op_Movexr_ea(const TWord op)
