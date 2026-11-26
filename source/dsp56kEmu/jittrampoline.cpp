@@ -153,7 +153,8 @@ namespace dsp56k
 		assert(ptrDspRegs.offset());
 
 #ifdef HAVE_ARM64
-		m_asm.add(regDspPtr, g_ptrDSP, ptrDspRegs.offset());
+		// lea_ materialises offsets that do not fit an ADD immediate, e.g. with the Debug history buffers
+		m_asm.lea_(regDspPtr, g_ptrDSP, &m_dsp.regs(), &m_dsp);
 #else
 		m_asm.lea(regDspPtr, ptrDspRegs);
 #endif
@@ -357,7 +358,8 @@ namespace dsp56k
 		assert(ptrDspRegs.offset());
 
 #ifdef HAVE_ARM64
-		m_asm.add(regDspPtr, g_ptrDSP, ptrDspRegs.offset());
+		// lea_ materialises offsets that do not fit an ADD immediate, e.g. with the Debug history buffers
+		m_asm.lea_(regDspPtr, g_ptrDSP, &m_dsp.regs(), &m_dsp);
 #else
 		m_asm.lea(regDspPtr, ptrDspRegs);
 #endif
