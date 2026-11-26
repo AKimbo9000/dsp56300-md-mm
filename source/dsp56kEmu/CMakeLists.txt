@@ -85,6 +85,7 @@ jitruntimedata.cpp jitruntimedata.h
 jitstackhelper.cpp jitstackhelper.h
 jittypes.h
 jittrampoline.cpp jittrampoline.h
+jitcoderegion.cpp jitcoderegion.h
 jitunittests.cpp jitunittests.h
 
 jitops_agu_aarch64.cpp
@@ -136,6 +137,13 @@ endif()
 
 if(DSP56K_FORCE_INTERPRETER)
 	target_compile_definitions(dsp56kEmu PUBLIC DSP56K_FORCE_INTERPRETER=1)
+endif()
+
+if(DSP56K_RUNTIME_ENGINE)
+	if(DSP56K_FORCE_INTERPRETER)
+		message(FATAL_ERROR "DSP56K_RUNTIME_ENGINE and DSP56K_FORCE_INTERPRETER exclude each other")
+	endif()
+	target_compile_definitions(dsp56kEmu PUBLIC DSP56K_RUNTIME_ENGINE=1)
 endif()
 
 # This should use ${PROJECT_SOURCE_DIR}/source if the top level of the repo

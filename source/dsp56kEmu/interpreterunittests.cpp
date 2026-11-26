@@ -21,7 +21,7 @@ namespace dsp56k
 
 	void InterpreterUnitTests::testOpcodeCacheAllocation()
 	{
-		if constexpr(g_useJIT)
+		if(useJIT())
 		{
 			verify(dsp.m_opcodeCache.empty());
 
@@ -96,7 +96,7 @@ namespace dsp56k
 
 	void InterpreterUnitTests::testCycleAccounting()
 	{
-		if constexpr(g_useJIT)
+		if(useJIT())
 		{
 			// Normal JIT builds must not pay for the interpreter-only per-PC cache.
 			verify(dsp.m_opcodeCycleCache.empty());

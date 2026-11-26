@@ -42,7 +42,15 @@ namespace dsp56k
 	// the interrupt function while an interrupt is queued
 	void dspExecInterrupts(DSP* _dsp) noexcept;
 
-	static constexpr bool g_useJIT = g_jitSupported;
+#if DSP56K_RUNTIME_ENGINE
+	// DSP56K_RUNTIME_ENGINE builds contain both engines. The engine is chosen once per process, before the first DSP
+	// is created: JIT when executable memory is available (on iOS: StikDebug has prepared a JitCodeRegion), the
+	// interpreter otherwise. Other builds keep the engine as a compile-time constant.
+	inline bool g_runtimeUseJIT = true;
+	inline bool useJIT() noexcept { return g_runtimeUseJIT; }
+#else
+	constexpr bool useJIT() noexcept { return g_jitSupported; }
+#endif
 
 	class DSP final
 	{
@@ -223,7 +231,7 @@ namespace dsp56k
 
 		ASMJIT_FORCE_INLINE void exec() noexcept
 		{
-			if(g_useJIT)
+			if(useJIT())
 				execJit();
 			else
 			{
@@ -241,7 +249,7 @@ namespace dsp56k
 			if(m_cycles >= _targetCycles)
 				return;
 
-			if constexpr(g_useJIT)
+			if(useJIT())
 			{
 				// Code that skips whole iterations of a wait loop must not skip past the end of this run: the
 				// trampoline leaves at the first block boundary at or after the target
@@ -274,7 +282,7 @@ namespace dsp56k
 
 		ASMJIT_FORCE_INLINE void execInlinePeripheralCheck() noexcept
 		{
-			if(g_useJIT)
+			if(useJIT())
 				execJitImpl<true>();
 			else
 			{
@@ -327,7 +335,7 @@ namespace dsp56k
 		{
 			// JIT-capable test and diagnostic binaries may explicitly exercise the
 			// interpreter even though the product path never does.
-			if constexpr(g_useJIT)
+			if(useJIT())
 			{
 				if(m_opcodeCache.empty())
 					clearOpcodeCache();

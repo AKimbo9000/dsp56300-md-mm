@@ -112,7 +112,7 @@ namespace dsp56k
 		// Normal JIT execution uses JitBlockChain's dispatch/cache structures and
 		// never reads the interpreter opcode cache. Keep that large per-PC table
 		// absent unless this build actually executes through the interpreter.
-		if constexpr(!g_useJIT)
+		if(!useJIT())
 			clearOpcodeCache();
 
 		resetHW();
@@ -240,7 +240,7 @@ namespace dsp56k
 			m_debugger->onExec(vba);
 #endif
 
-		if(g_useJIT)
+		if(useJIT())
 		{
 			LOGJITPC(vba);
 			const auto pc = getPC();
@@ -382,7 +382,7 @@ namespace dsp56k
 		{
 			m_debugger->onAttach();
 
-			if constexpr(g_useJIT)
+			if(useJIT())
 				m_jit.onDebuggerAttached(*m_debugger);
 		}
 	}
@@ -414,7 +414,7 @@ namespace dsp56k
 		{
 			++m_instructions;
 
-			if constexpr(!g_useJIT)
+			if(!useJIT())
 				m_cycles += getOpcodeCycles(currentOp);
 
 			if(g_traceSupported && pcCurrentInstruction == currentOp)
@@ -600,14 +600,14 @@ namespace dsp56k
 		sr_toggle( SR_FV, _loopcount == nullptr );
 		sr_set( SR_LF );
 
-		if constexpr(!g_useJIT)
+		if(!useJIT())
 			m_cycles += getOpcodeCycles(pcCurrentInstruction);
 
 		++m_instructions;
 
 		traceOp();
 
-		if constexpr(!g_useJIT)
+		if(!useJIT())
 		{
 			if(m_jit.getConfig().maxDoIterations && m_loopActivationCount < m_loopActivations.size())
 			{
@@ -821,7 +821,7 @@ namespace dsp56k
 		const auto lcBackup = reg.lc;
 		reg.lc.var = _loopCount;
 
-		if constexpr(!g_useJIT)
+		if(!useJIT())
 			m_cycles += getOpcodeCycles(pcCurrentInstruction);
 
 		++m_instructions;
@@ -848,7 +848,7 @@ namespace dsp56k
 			--reg.lc.var;
 			(this->*func)(op);
 			++m_instructions;
-			if constexpr(!g_useJIT)
+			if(!useJIT())
 				m_cycles += getOpcodeCycles(repeatedOpPC);
 //			traceOp();
 		}
@@ -1404,7 +1404,7 @@ namespace dsp56k
 				return;
 
 			m_opcodeCache[_addr].op = &DSP::op_ResolveCache;
-			if constexpr(!g_useJIT)
+			if(!useJIT())
 				m_opcodeCycleCache[_addr] = 0;
 
 #if DSP56300_DEBUGGER
@@ -1720,7 +1720,7 @@ namespace dsp56k
 	{
 		m_opcodeCache.clear();
 		m_opcodeCache.resize(mem.sizeP(), {&DSP::op_ResolveCache});
-		if constexpr(!g_useJIT)
+		if(!useJIT())
 			m_opcodeCycleCache.assign(mem.sizeP(), 0);
 	}
 

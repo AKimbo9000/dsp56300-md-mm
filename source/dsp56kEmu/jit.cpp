@@ -1,4 +1,5 @@
 #include "jit.h"
+#include "jitcoderegion.h"
 
 #include "dsp.h"
 #include "jitblock.h"
@@ -120,7 +121,7 @@ namespace dsp56k
 		Jit::toJitPtr(_jit)->run(_pc);
 	}
 
-	Jit::Jit(DSP& _dsp) : m_dsp(_dsp), m_trampoline(_dsp), m_rt(new JitRuntime())
+	Jit::Jit(DSP& _dsp) : m_dsp(_dsp), m_trampoline(_dsp), m_rt(new RegionJitRuntime())
 	{
 #ifdef __APPLE__
 		// One default table per DSP is prepared during construction. New DSP
@@ -162,7 +163,8 @@ namespace dsp56k
 		}
 
 		// a build without a JIT backend, a 32 bit one for example, runs the interpreter and cannot generate this code
-		if constexpr (g_jitSupported)
+		// and neither does a DSP56K_RUNTIME_ENGINE build that runs the interpreter: it may have no executable memory
+		if (g_jitSupported && useJIT())
 			m_trampoline.generateCode();
 	}
 

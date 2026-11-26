@@ -3509,7 +3509,7 @@ namespace dsp56k
 			verify(dspM.aluB().var == 0xffffffffffffff);
 		};
 
-		if constexpr(g_useJIT)
+		if(useJIT())
 		{
 			replaceThroughAlias(0x2000, external + 0x2000, true);
 			replaceThroughAlias(external + 0x3000, 0x3000, true);

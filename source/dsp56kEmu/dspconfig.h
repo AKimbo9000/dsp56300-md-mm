@@ -10,6 +10,13 @@ namespace dsp56k
 	constexpr bool g_useAARTranslate = false;
 #endif
 
+#if defined(DSP56K_FORCE_INTERPRETER) && DSP56K_RUNTIME_ENGINE
+#error DSP56K_FORCE_INTERPRETER and DSP56K_RUNTIME_ENGINE exclude each other
+#endif
+#ifndef DSP56K_RUNTIME_ENGINE
+#define DSP56K_RUNTIME_ENGINE 0
+#endif
+
 #if !defined(DSP56K_FORCE_INTERPRETER) && (defined(HAVE_X86_64) || defined(HAVE_ARM64))
 	constexpr bool g_jitSupported = true;
 #else
