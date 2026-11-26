@@ -333,7 +333,11 @@ namespace dsp56k
 					clearOpcodeCache();
 			}
 
-			m_interruptFunc(this);
+			// The ordinary peripheral callback returns at once when nothing is due. Test that inline, as execJitImpl<true>
+			// does, and keep the call for pending interrupts, other processing modes and due peripherals: the same
+			// work in the same order, without an indirect call per instruction.
+			if(m_interruptFunc != m_execPeripheralsFunc || perif[0]->isDue(m_instructions, m_cycles))
+				m_interruptFunc(this);
 
 #if DSP56300_DEBUGGER
 			if(m_debugger)
@@ -357,8 +361,14 @@ namespace dsp56k
 
 			execOp(op);
 
-			if(ASMJIT_UNLIKELY(m_loopActivationCount))
-				processLoopActivations();
+			// Most instructions inside a loop are not its last word, have no loop end pending and leave its frame alone;
+			// processLoopActivations() does nothing for them, so only call it otherwise
+			if(m_loopActivationCount)
+			{
+				const auto& act = m_loopActivations[m_loopActivationCount - 1];
+				if(act.fetchedLA || pcCurrentInstruction + m_currentOpLen == reg.la.var + 1 || reg.sc.var < act.stackCount)
+					processLoopActivations();
+			}
 		}
 
 		template<typename Ta, typename Tb> void execPeriph() noexcept
