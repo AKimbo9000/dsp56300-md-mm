@@ -2,6 +2,7 @@ set(ASMJIT_STATIC TRUE)
 
 option(DSP56300_DEBUGGER "Build wxWidgets based debugger" OFF)
 option(DSP56K_FORCE_INTERPRETER "Disable the JIT and use the interpreter" OFF)
+option(DSP56K_RUNTIME_ENGINE "Build both engines and choose one at run time (dsp56k::g_runtimeUseJIT)" OFF)
 
 add_subdirectory(asmjit)
 add_subdirectory(dsp56kBase)
