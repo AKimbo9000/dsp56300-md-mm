@@ -82,14 +82,24 @@ namespace dsp56k
 	inline void DSP::op_Brclr_ea(const TWord op)	{ braIfBitTestMem<Brclr_ea, Bra, BitClear>(op);	}
 	inline void DSP::op_Brclr_aa(const TWord op)	{ braIfBitTestMem<Brclr_aa, Bra, BitClear>(op);	}
 	inline void DSP::op_Brclr_pp(const TWord op)	{ braIfBitTestMem<Brclr_pp, Bra, BitClear>(op);	}
-	inline void DSP::op_Brclr_qq(const TWord op)	{ braIfBitTestMem<Brclr_qq, Bra, BitClear>(op);	}
+	inline void DSP::op_Brclr_qq(const TWord op)
+	{
+		if(mem.get(MemArea_P, pcCurrentInstruction + 1) == 0)
+			serialStatusSpin(getFieldValue<Brclr_qq, Field_qqqqqq>(op) + 0xffff80, getBit<Brclr_qq>(op), true);
+		braIfBitTestMem<Brclr_qq, Bra, BitClear>(op);
+	}
 	inline void DSP::op_Brclr_S(const TWord op)		{ braIfBitTestDDDDDD<Brclr_S, Bra, BitClear>(op); }
 
 	// Brset
 	inline void DSP::op_Brset_ea(const TWord op)	{ braIfBitTestMem<Brset_ea, Bra, BitSet>(op); }
 	inline void DSP::op_Brset_aa(const TWord op)	{ braIfBitTestMem<Brset_aa, Bra, BitSet>(op); }
 	inline void DSP::op_Brset_pp(const TWord op)	{ braIfBitTestMem<Brset_pp, Bra, BitSet>(op); }
-	inline void DSP::op_Brset_qq(const TWord op)	{ braIfBitTestMem<Brset_qq, Bra, BitSet>(op); }
+	inline void DSP::op_Brset_qq(const TWord op)
+	{
+		if(mem.get(MemArea_P, pcCurrentInstruction + 1) == 0)
+			serialStatusSpin(getFieldValue<Brset_qq, Field_qqqqqq>(op) + 0xffff80, getBit<Brset_qq>(op), false);
+		braIfBitTestMem<Brset_qq, Bra, BitSet>(op);
+	}
 	inline void DSP::op_Brset_S(const TWord op)		{ braIfBitTestDDDDDD<Brset_S, Bra, BitSet>(op); }
 
 	// Bsclr

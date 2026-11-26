@@ -20,6 +20,8 @@
 #include "dspconfig.h"
 #include "interrupts.h"
 #include "opcodecycles.h"
+#include "peripherals.h"
+#include "essi.h"
 
 #include "dsp_decode.inl"
 
@@ -701,6 +703,91 @@ namespace dsp56k
 
 			--m_loopActivationCount;
 		}
+	}
+
+	// The JIT fast forwards a DSP that spins on a flag of its serial interface to that interface's next slot
+	// (jitops_jmp.cpp skipToFrameSync), adding n instructions and n cycles. The interpreter must reach the same state,
+	// so it applies the same skip, at the same point: before the polling instruction reads the status register.
+	void DSP::serialStatusSpin(const TWord _addr, const TWord _bit, const bool _waitForSet)
+	{
+		const auto skip = [this](const TWord _n) { fastForward(_n, _n); };
+
+		if(auto* p = dynamic_cast<Peripherals56362*>(perif[0]))
+		{
+			if(_addr != Esai::M_SAISR)
+				return;
+			if(_bit != Esai::M_TFS && _bit != Esai::M_RFS && _bit != Esai::M_TDE && _bit != Esai::M_RDF)
+				return;
+			const bool flag = (p->getEsai().readStatusRegister() >> _bit) & 1;
+			skip(_waitForSet ? p->getEsaiClock().getRemainingInstructionsUntil<true>(flag)
+				: p->getEsaiClock().getRemainingInstructionsUntil<false>(flag));
+		}
+		else if(auto* p = dynamic_cast<Peripherals56303*>(perif[0]))
+		{
+			if(_addr != Essi::ESSI0_SSISR && _addr != Essi::ESSI1_SSISR)
+				return;
+			if(_bit != Essi::SSISR_TFS && _bit != Essi::SSISR_RFS && _bit != Essi::SSISR_TDE && _bit != Essi::SSISR_RDF)
+				return;
+			auto& essi = _addr == Essi::ESSI0_SSISR ? p->getEssi0() : p->getEssi1();
+			const bool flag = (essi.readSR() >> _bit) & 1;
+			skip(_waitForSet ? p->getEssiClock().getRemainingInstructionsUntil<true>(flag)
+				: p->getEssiClock().getRemainingInstructionsUntil<false>(flag));
+		}
+	}
+
+	// btst of a serial status register followed by a branch back to the btst on carry, as JitOps::btstSerialStatusSpin
+	void DSP::btstSerialStatusSpin(const EMemArea _area, TWord _addr, const TWord _bit)
+	{
+		if(_area != MemArea_X)
+			return;
+
+		// a 16 bit address of the peripheral range, in Sixteen-bit Compatibility mode
+		if(_addr < 0x10000 && _addr >= 0xff80)
+			_addr |= 0xff0000;
+
+		Instruction instA, instB;
+		const TWord btstOp = mem.get(MemArea_P, pcCurrentInstruction);
+		m_opcodes.getInstructionTypes(btstOp, instA, instB);
+		const auto pc = pcCurrentInstruction + Opcodes::getOpcodeLength(btstOp, instA, instB);
+		const auto op = mem.get(MemArea_P, pc);
+
+		Instruction inst;
+		m_opcodes.getInstructionTypes(op, inst, instB);
+
+		TWord target;
+		TWord cccc;
+
+		switch(inst)
+		{
+		case Jcc_xxx:
+			target = getFieldValue<Jcc_xxx, Field_aaaaaaaaaaaa>(op);
+			cccc = getFieldValue<Jcc_xxx, Field_CCCC>(op);
+			break;
+		case Jcc_ea:
+			if((getFieldValue<Jcc_ea, Field_MMM>(op) << 3 | getFieldValue<Jcc_ea, Field_RRR>(op)) != MMMRRR_AbsAddr)
+				return;
+			target = mem.get(MemArea_P, pc + 1);
+			cccc = getFieldValue<Jcc_ea, Field_CCCC>(op);
+			break;
+		case Bcc_xxx:
+			target = pc + getRelativeAddressOffset<Bcc_xxx>(op);
+			cccc = getFieldValue<Bcc_xxx, Field_CCCC>(op);
+			break;
+		case Bcc_xxxx:
+			target = pc + signextend<int, 24>(static_cast<int>(mem.get(MemArea_P, pc + 1)));
+			cccc = getFieldValue<Bcc_xxxx, Field_CCCC>(op);
+			break;
+		default:
+			return;
+		}
+
+		if((target & 0xffffff) != pcCurrentInstruction)
+			return;
+
+		if(cccc == CCCC_CarryClear)
+			serialStatusSpin(_addr, _bit, true);
+		else if(cccc == CCCC_CarrySet)
+			serialStatusSpin(_addr, _bit, false);
 	}
 
 	bool DSP::do_end()

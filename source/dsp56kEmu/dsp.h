@@ -109,6 +109,11 @@ namespace dsp56k
 		std::array<LoopActivation, 32> m_loopActivations{};
 		uint32_t m_loopActivationCount = 0;
 		void processLoopActivations();
+
+		// Mirrors of JitOps::serialStatusSpin / btstSerialStatusSpin: a poll of a serial status flag that branches to
+		// itself is fast forwarded to the next frame sync with the counts the JIT adds, fastForward(n, n)
+		void serialStatusSpin(TWord _addr, TWord _bit, bool _waitForSet);
+		void btstSerialStatusSpin(EMemArea _area, TWord _addr, TWord _bit);
 		TWord							m_srCurrentInstruction = 0;
 		TWord							m_opWordB = 0;
 		uint32_t						m_currentOpLen = 0;
@@ -584,7 +589,13 @@ namespace dsp56k
 		{
 			m_instructions += _instructions;
 			m_cycles += _cycles;
+			++m_fastForwardCalls;
+			m_fastForwardInstructions += _instructions;
 		}
+		uint64_t getFastForwardCalls() const { return m_fastForwardCalls; }
+		uint64_t getFastForwardInstructions() const { return m_fastForwardInstructions; }
+		uint64_t m_fastForwardCalls = 0;
+		uint64_t m_fastForwardInstructions = 0;
 
 	private:
 

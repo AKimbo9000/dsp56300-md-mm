@@ -210,6 +210,9 @@ namespace dsp56k
 
 	inline void DSP::op_Btst_ea(const TWord op)
 	{
+		// an absolute address is known, any other is not (as the JIT, which decides it while compiling)
+		if((getFieldValue<Btst_ea, Field_MMM>(op) << 3 | getFieldValue<Btst_ea, Field_RRR>(op)) == MMMRRR_AbsAddr)
+			btstSerialStatusSpin(getFieldValueMemArea<Btst_ea>(op), mem.get(MemArea_P, pcCurrentInstruction + 1), getBit<Btst_ea>(op));
 		sr_toggle(CCR_C, bitTestMemory<Btst_ea>(op));
 	}
 	inline void DSP::op_Btst_aa(const TWord op)
@@ -222,6 +225,7 @@ namespace dsp56k
 	}
 	inline void DSP::op_Btst_qq(const TWord op)
 	{
+		btstSerialStatusSpin(getFieldValueMemArea<Btst_qq>(op), getFieldValue<Btst_qq, Field_qqqqqq>(op) + 0xffff80, getBit<Btst_qq>(op));
 		sr_toggle(CCR_C, bitTestMemory<Btst_qq>(op));
 	}
 	inline void DSP::op_Btst_D(const TWord op)

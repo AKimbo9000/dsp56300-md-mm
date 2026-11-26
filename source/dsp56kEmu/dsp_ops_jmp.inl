@@ -69,6 +69,8 @@ namespace dsp56k
 	}
 	inline void DSP::op_Jclr_qq(const TWord op)
 	{
+		if(mem.get(MemArea_P, pcCurrentInstruction + 1) == pcCurrentInstruction)
+			serialStatusSpin(getFieldValue<Jclr_qq, Field_qqqqqq>(op) + 0xffff80, getBit<Jclr_qq>(op), true);
 		jumpIfBitTestMem<Jclr_qq, Jump, BitClear>(op);
 	}
 	inline void DSP::op_Jclr_S(const TWord op)
@@ -133,6 +135,8 @@ namespace dsp56k
 	}
 	inline void DSP::op_Jset_qq(const TWord op)
 	{
+		if(mem.get(MemArea_P, pcCurrentInstruction + 1) == pcCurrentInstruction)
+			serialStatusSpin(getFieldValue<Jclr_qq, Field_qqqqqq>(op) + 0xffff80, getBit<Jclr_qq>(op), false);
 		jumpIfBitTestMem<Jset_qq, Jump, BitSet>(op);
 	}
 	inline void DSP::op_Jset_S(const TWord op)
