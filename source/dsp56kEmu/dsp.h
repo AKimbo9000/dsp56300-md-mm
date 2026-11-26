@@ -318,6 +318,16 @@ namespace dsp56k
 #endif
 
 			pcCurrentInstruction = reg.pc.toWord();
+
+			// SAFETY NET, as g_jitPcGuard is for the JIT: m_opcodeCache spans valid P memory only. A PC outside of it
+			// would index it out of bounds and call through a garbage pointer. Checked before the fetch, so the PC
+			// stays where it is and onInvalidPC() parks this DSP instead of the host process crashing.
+			if(ASMJIT_UNLIKELY(pcCurrentInstruction >= m_opcodeCache.size()))
+			{
+				onInvalidPC(pcCurrentInstruction);
+				return;
+			}
+
 			m_srCurrentInstruction = reg.sr.toWord();
 
 			const auto op = fetchPC();
