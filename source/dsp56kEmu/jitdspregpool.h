@@ -73,6 +73,13 @@ namespace dsp56k
 		JitDspRegPool(JitBlock& _block);
 		~JitDspRegPool();
 
+		static uint32_t hostId(const JitRegGP& _r) { return _r.id(); }
+		static uint32_t hostId(const SpillReg& _r) { return _r.reg.id(); }
+		// isInUse() for every host register at once: bit n is set if register id n holds a DSP register. A vector
+		// register is in use with any lane, as isInUse(JitReg128) checks; lanes are only ever 0 (addHostReg)
+		uint64_t usedGpIdMask() const;
+		uint64_t usedXmmIdMask() const;
+
 		JitRegGP get(PoolReg _reg, bool _read, bool _write)
 		{
 			return get(JitRegGP(), _reg, _read, _write);
@@ -281,6 +288,17 @@ namespace dsp56k
 
 			bool isFull() const					{ return m_available.empty(); }
 			bool isUsed(PoolReg _reg) const		{ return m_usedMap[_reg].isValid(); }
+			// host register ids in use, one bit each, for checks over all pool registers (PushGPRegs, PushXMMRegs)
+			uint64_t usedIdMask() const
+			{
+				uint64_t mask = 0;
+				for(size_t i=0; i<DspCount; ++i)
+				{
+					if(m_usedMap[i].isValid())
+						mask |= 1ull << (hostId(m_usedMap[i]) & 63);
+				}
+				return mask;
+			}
 			bool isUsed(const T& _reg) const
 			{
 				for(size_t i=0; i<DspCount; ++i)

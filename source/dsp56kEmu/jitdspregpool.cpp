@@ -359,6 +359,9 @@ namespace dsp56k
 		return m_xmList.isUsed({_xmm, 0}) || m_xmList.isUsed({_xmm, 1});
 	}
 
+	uint64_t JitDspRegPool::usedGpIdMask() const { return m_gpList.usedIdMask(); }
+	uint64_t JitDspRegPool::usedXmmIdMask() const { return m_xmList.usedIdMask(); }
+
 	bool JitDspRegPool::isInUse(const JitRegGP& _gp) const
 	{
 		return m_gpList.isUsed(_gp);

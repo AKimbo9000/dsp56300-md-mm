@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "opcodes.h"
@@ -163,7 +164,7 @@ namespace dsp56k
 		_a = static_cast<RegisterMask>(a);
 	}
 
-	constexpr RegisterMask convert(const Register _reg)
+	constexpr RegisterMask convertSwitch(const Register _reg)
 	{
 		switch (_reg)
 		{
@@ -200,6 +201,25 @@ namespace dsp56k
 			assert(static_cast<uint32_t>(_reg) < 64);
 			return static_cast<RegisterMask>(1ull << static_cast<uint64_t>(_reg));
 		}
+	}
+
+	namespace detail
+	{
+		constexpr auto makeRegisterMaskTable()
+		{
+			std::array<RegisterMask, static_cast<size_t>(Register::Count)> t{};
+			for(size_t i = 0; i < t.size(); ++i)
+				t[i] = convertSwitch(static_cast<Register>(i));
+			return t;
+		}
+		// convert() was 3.5% of the JIT's compile time as a switch
+		inline constexpr auto g_registerMaskTable = makeRegisterMaskTable();
+	}
+
+	constexpr RegisterMask convert(const Register _reg)
+	{
+		const auto i = static_cast<uint64_t>(_reg);
+		return i < detail::g_registerMaskTable.size() ? detail::g_registerMaskTable[i] : convertSwitch(_reg);
 	}
 
 	constexpr Register getRegisterDDDDDD(const TWord _dddddd)

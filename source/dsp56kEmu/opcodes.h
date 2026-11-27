@@ -1,7 +1,10 @@
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
 
 #include "opcodefields.h"
 #include "opcodeinfo.h"
@@ -295,6 +298,11 @@ namespace dsp56k
 	private:
 		static const OpcodeInfo* findOpcodeInfo(TWord _opcode, const std::vector<const OpcodeInfo*>& _opcodes);
 		
+		uint32_t getInstructionTypesUncached(TWord _op, Instruction& _a, Instruction& _b) const;
+
+		const OpcodeInfo* findNonParallelOpcodeInfoUncached(TWord _opcode) const;
+		const OpcodeInfo* findParallelOpcodeInfoUncached(TWord _opcode, const OpcodeInfo*& _alu) const;
+
 		std::vector<const OpcodeInfo*> m_opcodesNonParallel;
 		std::vector<const OpcodeInfo*> m_opcodesMove;
 		std::vector<const OpcodeInfo*> m_opcodesAlu;

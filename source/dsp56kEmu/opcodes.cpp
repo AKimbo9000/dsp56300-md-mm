@@ -43,8 +43,58 @@ namespace dsp56k
 		return g_runtimeFieldInfos.fieldInfos[_i].fieldInfos[_f];
 	}
 
+	namespace
+	{
+		/*	The decoders below searched the opcode lists linearly for every word, about 10% of the JIT's compile time.
+			Their results depend on the word only, so one direct-mapped memo per decoder serves every DSP of the process.
+			An entry is one word, valid bit | result << 24 | opcode, so a reader on another thread sees a whole entry or
+			a miss, never a torn one. Static storage: zero, so empty, before any use.
+		*/
+		constexpr size_t g_memoSize = 8192;
+		constexpr uint64_t g_memoValid = 1ull << 63;
+		constexpr uint16_t g_noOpcode = 0xffff;
+
+		using Memo = std::array<std::atomic<uint64_t>, g_memoSize>;
+		Memo g_typeMemo;
+		Memo g_nonParallelMemo;
+		Memo g_parallelMemo;
+
+		std::atomic<uint64_t>& memoSlot(Memo& _memo, const TWord _op)
+		{
+			return _memo[((_op & 0xffffff) * 0x9E3779B1u) >> (32 - 13) & (g_memoSize - 1)];
+		}
+
+		// the 40 bits of a result for _op, or false
+		bool memoGet(Memo& _memo, const TWord _op, uint64_t& _result)
+		{
+			const uint64_t e = memoSlot(_memo, _op).load(std::memory_order_relaxed);
+			if(!(e & g_memoValid) || (e & 0xffffff) != _op)
+				return false;
+			_result = (e >> 24) & 0xffffffffffull;
+			return true;
+		}
+
+		void memoPut(Memo& _memo, const TWord _op, const uint64_t _result)
+		{
+			if(_op > 0xffffff)
+				return;
+			memoSlot(_memo, _op).store(g_memoValid | ((_result & 0xffffffffffull) << 24) | _op, std::memory_order_relaxed);
+		}
+
+		uint16_t indexOf(const OpcodeInfo* _oi)
+		{
+			return _oi ? static_cast<uint16_t>(_oi - &Opcodes::getOpcodeInfoAt(0)) : g_noOpcode;
+		}
+
+		const OpcodeInfo* fromIndex(const uint16_t _index)
+		{
+			return _index == g_noOpcode ? nullptr : &Opcodes::getOpcodeInfoAt(_index);
+		}
+	}
+
 	Opcodes::Opcodes()
 	{
+
 		constexpr auto len = g_opcodeCount;
 
 		m_opcodesAlu.reserve(len);
@@ -69,7 +119,17 @@ namespace dsp56k
 		}
 	}
 
-	const OpcodeInfo* Opcodes::findNonParallelOpcodeInfo(TWord _opcode) const
+	const OpcodeInfo* Opcodes::findNonParallelOpcodeInfo(const TWord _opcode) const
+	{
+		uint64_t r;
+		if(memoGet(g_nonParallelMemo, _opcode, r))
+			return fromIndex(static_cast<uint16_t>(r));
+		const auto* oi = findNonParallelOpcodeInfoUncached(_opcode);
+		memoPut(g_nonParallelMemo, _opcode, indexOf(oi));
+		return oi;
+	}
+
+	const OpcodeInfo* Opcodes::findNonParallelOpcodeInfoUncached(TWord _opcode) const
 	{
 		assert(isNonParallelOpcode(_opcode));
 
@@ -97,6 +157,19 @@ namespace dsp56k
 	}
 
 	const OpcodeInfo* Opcodes::findParallelOpcodeInfo(const TWord _opcode, const OpcodeInfo*& _alu) const
+	{
+		uint64_t r;
+		if(memoGet(g_parallelMemo, _opcode, r))
+		{
+			_alu = fromIndex(static_cast<uint16_t>(r >> 16));
+			return fromIndex(static_cast<uint16_t>(r));
+		}
+		const auto* move = findParallelOpcodeInfoUncached(_opcode, _alu);
+		memoPut(g_parallelMemo, _opcode, (uint64_t(indexOf(_alu)) << 16) | indexOf(move));
+		return move;
+	}
+
+	const OpcodeInfo* Opcodes::findParallelOpcodeInfoUncached(const TWord _opcode, const OpcodeInfo*& _alu) const
 	{
 		/*	As the reference simulator runs them: a word whose move field matches no move is ILLEGAL and its ALU operation
 			does not run, $083100 and $083110 take the illegal instruction interrupt and $083110 adds nothing. An ALU byte
@@ -163,6 +236,25 @@ namespace dsp56k
 			_b = Invalid;
 			return 1;
 		}
+
+		uint64_t r;
+		if(memoGet(g_typeMemo, _op, r))
+		{
+			_a = static_cast<Instruction>(static_cast<int16_t>(r));
+			_b = static_cast<Instruction>(static_cast<int16_t>(r >> 16));
+			return static_cast<uint32_t>((r >> 32) & 0xff);
+		}
+		const auto res = getInstructionTypesUncached(_op, _a, _b);
+		if(res <= 0xff)
+		{
+			memoPut(g_typeMemo, _op, (uint64_t(res) << 32) | (uint64_t(static_cast<uint16_t>(static_cast<int16_t>(_b))) << 16) |
+				uint64_t(static_cast<uint16_t>(static_cast<int16_t>(_a))));
+		}
+		return res;
+	}
+
+	uint32_t Opcodes::getInstructionTypesUncached(const TWord _op, Instruction& _a, Instruction& _b) const
+	{
 
 		_a = _b = Invalid;
 

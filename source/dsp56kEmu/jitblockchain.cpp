@@ -149,6 +149,8 @@ namespace dsp56k
 	void JitBlockChain::create(const TWord _pc, bool _execute)
 	{
 //		LOG("Create @ " << HEX(_pc));// << std::endl << cacheEntry.block->getDisasm());
+		const auto statsStart = JitStats::now();
+		g_jitStats.creates.fetch_add(1, std::memory_order_relaxed);
 
 		ensureCacheSize(_pc, _pc+1);
 
@@ -193,6 +195,7 @@ namespace dsp56k
 
 					occupyArea(cacheEntry.block);
 
+					JitStats::add(g_jitStats.createNs, statsStart);
 					if(_execute)
 						exec(_pc);
 					return;
@@ -210,6 +213,7 @@ namespace dsp56k
 				forgetLoopEnd(loopEnd);
 		}
 
+		JitStats::add(g_jitStats.createNs, statsStart);
 		if(_execute)
 			exec(_pc);
 	}
@@ -459,7 +463,7 @@ namespace dsp56k
 
 		const auto codegenStart = JitStats::now();
 		const bool emitted = emitter->block.emit(*b, this, _pc, m_jitCache, m_jit.getVolatileP(), m_jit.getLoops(), m_jit.getLoopEnds(), m_jit.getProfilingSupport());
-		JitStats::add(g_jitStats.codegenNs, codegenStart);
+		const auto codegenEnd = JitStats::lap(g_jitStats.codegenNs, codegenStart);
 		if(!emitted)
 		{
 			LOG("FATAL: code generation failed for PC " << HEX(_pc));
@@ -474,15 +478,13 @@ namespace dsp56k
 			optimizer.optimize();
 		}
 
-		const auto finalizeStart = JitStats::now();
 		emitter->emitter.finalize();
-		JitStats::add(g_jitStats.finalizeNs, finalizeStart);
+		const auto finalizeEnd = JitStats::lap(g_jitStats.finalizeNs, codegenEnd);		// the optimizer, if on, counts here
 
 		TJitFunc func;
 
-		const auto addStart = JitStats::now();
 		const auto err = m_jit.getRuntime()->add(&func, &emitter->codeHolder);
-		JitStats::add(g_jitStats.addNs, addStart);
+		JitStats::lap(g_jitStats.addNs, finalizeEnd);
 
 		if(err)
 		{
@@ -495,6 +497,7 @@ namespace dsp56k
 
 		b->finalize(func, emitter->codeHolder);
 		m_codeSize += emitter->codeHolder.codeSize();
+		g_jitStats.codeBytes.fetch_add(emitter->codeHolder.codeSize(), std::memory_order_relaxed);
 
 		m_jit.releaseEmitter(emitter);
 
