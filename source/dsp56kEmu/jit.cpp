@@ -6,6 +6,7 @@
 #include "jitdspmode.h"
 #include "jitprofilingsupport.h"
 #include "jitblockemitter.h"
+#include "jitstats.h"
 
 #include "asmjit/core/jitruntime.h"
 
@@ -476,8 +477,11 @@ namespace dsp56k
 
 		if(itExisting == m_chains.end())
 		{
+			const auto statsStart = JitStats::now();
 			m_currentChain = new JitBlockChain(*this, mode, m_maxUsedPAddress);
 			m_chains.insert(std::make_pair(mode, m_currentChain));
+			g_jitStats.chains.fetch_add(1, std::memory_order_relaxed);
+			JitStats::add(g_jitStats.chainNs, statsStart);
 		}
 		else
 		{

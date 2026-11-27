@@ -62,7 +62,7 @@ jitconfig.h
 jitdspmode.cpp jitdspmode.h
 jitemitter.cpp jitemitter.h
 jitblock.cpp jitblock.h
-jitblockchain.cpp jitblockchain.h
+jitblockchain.cpp jitblockchain.h jitstats.h
 jitblockemitter.h
 jitblockinfo.cpp jitblockinfo.h
 jitblockruntimedata.cpp jitblockruntimedata.h

@@ -10,6 +10,7 @@
 #include "dsp56kBase/profiler.h"
 #include "asmjit/core/jitruntime.h"
 #include "jitblockemitter.h"
+#include "jitstats.h"
 
 namespace dsp56k
 {
@@ -407,8 +408,11 @@ namespace dsp56k
 		return e.block;
 	}
 
+	JitStats g_jitStats;
+
 	JitBlockRuntimeData* JitBlockChain::emit(TWord _pc)
 	{
+		const auto statsStart = JitStats::now();
 		/*	Without dynamicFastInterrupts, every block below Vba_End is compiled as a fast interrupt: two words at most and
 			no PC update, the interrupted program's PC is restored by the caller. Blocks are compiled on first execution and
 			an interrupt sets the processing mode before its vector runs, so a vector block compiled in any other mode is
@@ -453,7 +457,10 @@ namespace dsp56k
 
 		m_errorHandler->setBlock(b);
 
-		if(!emitter->block.emit(*b, this, _pc, m_jitCache, m_jit.getVolatileP(), m_jit.getLoops(), m_jit.getLoopEnds(), m_jit.getProfilingSupport()))
+		const auto codegenStart = JitStats::now();
+		const bool emitted = emitter->block.emit(*b, this, _pc, m_jitCache, m_jit.getVolatileP(), m_jit.getLoops(), m_jit.getLoopEnds(), m_jit.getProfilingSupport());
+		JitStats::add(g_jitStats.codegenNs, codegenStart);
+		if(!emitted)
 		{
 			LOG("FATAL: code generation failed for PC " << HEX(_pc));
 			m_jit.releaseBlockRuntimeData(b);
@@ -467,11 +474,15 @@ namespace dsp56k
 			optimizer.optimize();
 		}
 
+		const auto finalizeStart = JitStats::now();
 		emitter->emitter.finalize();
+		JitStats::add(g_jitStats.finalizeNs, finalizeStart);
 
 		TJitFunc func;
 
+		const auto addStart = JitStats::now();
 		const auto err = m_jit.getRuntime()->add(&func, &emitter->codeHolder);
+		JitStats::add(g_jitStats.addNs, addStart);
 
 		if(err)
 		{
@@ -500,6 +511,8 @@ namespace dsp56k
 		if(d)
 			d->onJitBlockCreated(m_mode, b);
 #endif
+		g_jitStats.emitBlocks.fetch_add(1, std::memory_order_relaxed);
+		JitStats::add(g_jitStats.emitNs, statsStart);
 		return b;
 	}
 
